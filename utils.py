@@ -1,7 +1,12 @@
 import inspect
+import functools
 
 
 def type_check(func):
+    """
+    Type check decorator checks the signiture of a function and raise error if the input parameter's type is inconsitent with
+    the function signatures.
+    """
     def check(*args, **kwargs):
         # TODO: doesn't support wildcard args and kwargs
         # TODO: assumed kwargs defined type is the same with default value
@@ -45,3 +50,30 @@ def type_check(func):
 
     return check
 
+
+def logging_func(logger, show_content=False):
+    """
+    This decorators supports to log the input parameters of the functions and log the code of the function.
+
+    Parameter
+    ---------
+    logger: logging.Logger, the logger to log the input and code
+    show_content: bool, whether to log the function content
+
+    Return 
+    -------
+    function:
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            logger.info('call %s()' % func.__name__)
+            logger.info('args = {}'.format(args if args else 'none'))
+            logger.info('kwargs = {}'.format(kwargs if kwargs else 'none'))
+            if show_content:
+                logger.info('func content: \n {}'.format(inspect.getsource(func)))
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
