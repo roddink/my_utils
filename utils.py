@@ -45,26 +45,3 @@ def type_check(func):
 
     return check
 
-
-if __name__ == '__main__':
-    @type_check
-    def a(b: str, c, d=1) -> None:
-        return None
-
-    a('1', '2', 'c')
-    print('expected: d has a wrong type', '\n')
-
-    a('1', '2', 0.0)
-    print('expected: d has a wrong type', '\n')
-
-    a('1', '2', int(1))
-    print('expected: correct types', '\n')
-
-    a('1', '2', d=int(1))
-    print('expected: correct types', '\n')
-
-    a('1', 2, d=int(1))
-    print('expected: correct types', '\n')
-
-    a(1, '2', 'c')
-    print('expected: b has a wrong type and d has a wrong type', '\n')
