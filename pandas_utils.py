@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+import re
+from datetime import timedelta, datetime
 
 
 def join_within_range(l_df, r_df, l_df_on, r_df_lrange, r_df_rrange, boundary='[]', how='inner'):
@@ -75,3 +77,74 @@ def join_within_range(l_df, r_df, l_df_on, r_df_lrange, r_df_rrange, boundary='[
         r_df = _assign_nan_to_columns(r_df, l_df.columns)
         dfs.append(r_df.loc[r_df['__count'].isna()])
         return pd.concat(dfs).drop(columns='__count')
+
+
+def pivot_events_to_snapshots(df, agg_func, start_time, end_time, timestamp, 
+                              step, by=[], value_col='', 
+                              timeformat='%Y-%m-%d %H:%M:%S', 
+                              fill='ffill', default=0):
+    """
+    pivot the dataframe in event format to a snapshot format. 
+    This is commonly used in sensor data process.
+
+    parameters
+    ----------
+    df: pyspark.sql.DataFrame, input events list 
+    agg_func: str or function, the aggregation function to apply to the data in each time step. 
+            same with aggregation function in pandas groupby
+    start_time: str or datetime.datetime, the starting time of the converted snapshot dataframe.
+    end_time: str or datetime.datetime, the end time of the converted snapshot dataframe.
+    timestamp: str, the column name of the timestamp column
+    step: str, in format '2d3h4m5s', it means each timeframe is 2 days 3 hours 4 minutes and 5 seconds
+    by: list of str, the pivot column names
+    value_col: str, the value column name
+    timeformat: str, the time format in start_time, end_time and timestamp columns
+    fill: str, same with pd.DataFrame fillna 'backfill', 'bfill', 'pad', 'ffill', None
+        which method to use to the none values in the pivot dataframe
+    default: the default value in the pivot dataframe
+
+    Returns
+    -------
+    pd.DataFrame: the pivot dataframe.
+    """
+    
+    # Consolidate datetime inputs into datetime type
+    start_time = start_time if isinstance(start_time, datetime) else datetime.strptime(start_time, timeformat)
+    end_time = end_time if isinstance(end_time, datetime) else datetime.strptime(end_time, timeformat)
+    df[timestamp] = pd.to_datetime(df[timestamp], format=timeformat)
+    snapshot_columns = df.groupby(by).size().to_frame().transpose().columns
+
+    # Construct the snapshot dataframe 
+    step = _parse_step(step)
+    timeframe = start_time
+    snapshot_index = []
+    while timeframe <= end_time:
+        snapshot_index.append(timeframe)
+        timeframe += step 
+    print(snapshot_index)   
+    snapshot_df = pd.DataFrame(np.empty((len(snapshot_index) - 1, len(snapshot_columns))), 
+                               columns=snapshot_columns, 
+                               index=snapshot_index[:-1])
+    
+    for i, s_e in enumerate(zip(snapshot_index[:-1], snapshot_index[1:])):
+        s, e = s_e
+        timeframe_series = _filter_within_range(df, timestamp, s, e).groupby(by).aggregate(agg_func)
+        print(timeframe_series)
+        print(s, e)
+        for value, cols in zip(timeframe_series[value_col], timeframe_series.index):
+            snapshot_df.iloc[i][cols] = value
+    return snapshot_df.fillna(method=fill).fillna(default)
+            
+
+def _filter_within_range(df, col, min, max):
+    return df.loc[(df[col] >= min) & (df[col] <= max)].drop(columns=col)
+
+
+def _parse_step(step):
+    parse_regex = re.compile("((?P<d>[0-9]*)d)?((?P<h>[0-9]*)h)?((?P<m>[0-9]*)m)?((?P<s>[0-9]*)s)?")
+    step_match = re.match(parse_regex, step)
+    if step_match:
+        return timedelta(days=int(step_match.group('d')) if step_match.group('d') else 0, 
+                         hours=int(step_match.group('h')) if step_match.group('h') else 0, 
+                         minutes=int(step_match.group('m')) if step_match.group('m') else 0,
+                         seconds=int(step_match.group('s')) if step_match.group('s') else 0)
