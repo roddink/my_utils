@@ -121,7 +121,6 @@ def pivot_events_to_snapshots(df, agg_func, start_time, end_time, timestamp,
     while timeframe <= end_time:
         snapshot_index.append(timeframe)
         timeframe += step 
-    print(snapshot_index)   
     snapshot_df = pd.DataFrame(np.empty((len(snapshot_index) - 1, len(snapshot_columns))), 
                                columns=snapshot_columns, 
                                index=snapshot_index[:-1])
@@ -129,8 +128,6 @@ def pivot_events_to_snapshots(df, agg_func, start_time, end_time, timestamp,
     for i, s_e in enumerate(zip(snapshot_index[:-1], snapshot_index[1:])):
         s, e = s_e
         timeframe_series = _filter_within_range(df, timestamp, s, e).groupby(by).aggregate(agg_func)
-        print(timeframe_series)
-        print(s, e)
         for value, cols in zip(timeframe_series[value_col], timeframe_series.index):
             snapshot_df.iloc[i][cols] = value
     return snapshot_df.fillna(method=fill).fillna(default)
